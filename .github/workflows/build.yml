@@ -9,17 +9,23 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v1.3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
 
-    - name: Build Solution
-      run: msbuild "src/FoulzExternal.sln" /p:Configuration=Release
+    - name: Restore dependencies
+      run: dotnet restore "src/FoulzExternal.sln"
 
-    - name: Upload Artifact
+    - name: Build solution
+      run: dotnet build "src/FoulzExternal.sln" --configuration Release --no-restore
+
+    - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: build-output
         path: |
-          **/bin/Release/**
+          src/FoulzExternal/bin/Release/
