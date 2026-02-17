@@ -74,27 +74,38 @@ namespace FoulzExternal.features.games.universal.flight
                     Vector3 dir = default;
                     bool moving = false;
 
-                    if (IsKeyDown(0x57)) { dir -= forward; moving = true; } // W
-                    if (IsKeyDown(0x53)) { dir += forward; moving = true; } // S
-                    if (IsKeyDown(0x41)) { dir -= right;   moving = true; } // A
-                    if (IsKeyDown(0x44)) { dir += right;   moving = true; } // D
-                    if (IsKeyDown(0x20)) { dir.y += 1f;    moving = true; } // Space
-                    if (IsKeyDown(0x11)) { dir.y -= 1f;    moving = true; } // Ctrl
+                    if (IsKeyDown(0x57)) { dir -= forward; moving = true; }
+                    if (IsKeyDown(0x53)) { dir += forward; moving = true; }
+                    if (IsKeyDown(0x41)) { dir -= right;   moving = true; }
+                    if (IsKeyDown(0x44)) { dir += right;   moving = true; }
+                    if (IsKeyDown(0x20)) { dir.y += 1f;    moving = true; }
+                    if (IsKeyDown(0x11)) { dir.y -= 1f;    moving = true; }
 
                     if (moving)
                     {
-                        if (dir.Magnitude() > 0.01f) dir = dir.Normalize();
-                        SDK.Instance.Mem.Write<Vector3>(hrp.Address + Offsets.BasePart.AssemblyLinearVelocity, dir * Options.Settings.Flight.VFlightSpeed);
+                        if (dir.Magnitude() > 0.01f)
+                            dir = dir.Normalize();
+
+                        SDK.Instance.Mem.Write<Vector3>(
+                            hrp.Address + Offsets.BasePart.AssemblyLinearVelocity,
+                            dir * Options.Settings.Flight.VFlightSpeed
+                        );
                     }
                     else
                     {
-                        SDK.Instance.Mem.Write<Vector3>(hrp.Address + Offsets.BasePart.AssemblyLinearVelocity, default);
+                        SDK.Instance.Mem.Write<Vector3>(
+                            hrp.Address + Offsets.BasePart.AssemblyLinearVelocity,
+                            default
+                        );
                     }
                 }
                 catch { }
+
                 Thread.Sleep(10);
             }
         }
 
-        private static bool IsKeyDown(int vKey) => (GetAsyncKeyState(vKey) & 0x8000) != 0;
-    
+        private static bool IsKeyDown(int vKey)
+            => (GetAsyncKeyState(vKey) & 0x8000) != 0;
+    }
+}
