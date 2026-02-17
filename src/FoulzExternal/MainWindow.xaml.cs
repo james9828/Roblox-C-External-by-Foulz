@@ -570,4 +570,6 @@ namespace FoulzExternal
         private void silentpredx(object sender, RoutedPropertyChangedEventArgs<double> e) { if (_shutup || SilentPredictionXSlider == null) return; Options.Settings.Silent.PredictionX = (float)SilentPredictionXSlider.Value; if (SilentPredictionXValueText != null) SilentPredictionXValueText.Text = Options.Settings.Silent.PredictionX.ToString("0"); }
         private void silentpredy(object sender, RoutedPropertyChangedEventArgs<double> e) { if (_shutup || SilentPredictionYSlider == null) return; Options.Settings.Silent.PredictionY = (float)SilentPredictionYSlider.Value; if (SilentPredictionYValueText != null) SilentPredictionYValueText.Text = Options.Settings.Silent.PredictionY.ToString("0"); }
         private void silentkey(object sender, RoutedEventArgs e) { if (_shutup) return; var kb = Options.Settings.Silent.SilentAimbotKey; if (kb == null) return; kb.Waiting = true; if (SilentAimbotKeyButton != null) SilentAimbotKeyButton.Content = "PRESS..."; }
-    
+}
+}
+  
