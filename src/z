@@ -1,76 +1,20 @@
-import os
 import subprocess
+import os
 
 def run(cmd):
     subprocess.run(cmd, check=True)
 
-def run_ignore(cmd):
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError:
-        pass
+# Ensure git identity exists
+subprocess.run(["git", "config", "--global", "user.name", "james9828"])
+subprocess.run(["git", "config", "--global", "user.email", "your_github_email"])
 
-# Find first .sln recursively
-sln_path = None
-for root, dirs, files in os.walk("."):
-    for file in files:
-        if file.endswith(".sln"):
-            sln_path = os.path.join(root, file).replace("\\", "/")
-            break
-    if sln_path:
-        break
-
-if not sln_path:
-    print("No .sln file found anywhere in this repo.")
-    exit(1)
-
-print(f"Detected solution: {sln_path}")
-
-workflow = f"""name: Build
-
-on:
-  push:
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: windows-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v1.3
-
-    - name: Build Solution
-      run: msbuild "{sln_path}" /p:Configuration=Release
-
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-output
-        path: |
-          **/bin/Release/**
-"""
-
-os.makedirs(".github/workflows", exist_ok=True)
-
-with open(".github/workflows/build.yml", "w") as f:
-    f.write(workflow)
-
-# Stage everything
-run_ignore(["git", "add", "-A"])
+# Stage EVERYTHING (including deletions)
+run(["git", "add", "-A"])
 
 # Commit if needed
-try:
-    run(["git", "commit", "-m", f"Auto-sync workflow for {sln_path}"])
-except:
-    print("Nothing new to commit.")
+subprocess.run(["git", "commit", "-m", "Full sync from local"], check=False)
 
-# Sync remote safely
-run_ignore(["git", "pull", "origin", "main", "--rebase"])
+# Force push local state to remote
+run(["git", "push", "origin", "main", "--force"])
 
-# Push
-run(["git", "push", "origin", "main"])
-
-print("Workflow auto-synced and pushed successfully.")
+print("Remote fully overwritten with local folder.")
