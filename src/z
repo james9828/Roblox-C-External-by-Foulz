@@ -1,5 +1,4 @@
 import os
-import sys
 import subprocess
 
 def run(cmd):
@@ -11,17 +10,21 @@ def run_ignore(cmd):
     except subprocess.CalledProcessError:
         pass
 
-if len(sys.argv) < 2:
-    print("Usage: python z.py YourSolution.sln")
-    sys.exit(1)
+# Find all .sln files
+sln_files = [f for f in os.listdir() if f.endswith(".sln")]
 
-sln = sys.argv[1]
+if not sln_files:
+    print("No .sln files found in this directory.")
+    exit(1)
 
-if not os.path.exists(sln):
-    print("Solution file not found.")
-    sys.exit(1)
+print("Select a solution file:")
+for i, f in enumerate(sln_files):
+    print(f"{i+1}. {f}")
 
-# Ensure identity
+choice = int(input("Enter number: ")) - 1
+sln = sln_files[choice]
+
+# Ensure identity (won’t overwrite if already set)
 run_ignore(["git", "config", "--global", "user.name", "james9828"])
 run_ignore(["git", "config", "--global", "user.email", "your_github_email"])
 
@@ -57,19 +60,15 @@ os.makedirs(".github/workflows", exist_ok=True)
 with open(".github/workflows/build.yml", "w") as f:
     f.write(workflow)
 
-# Stage EVERYTHING
+# Stage everything
 run_ignore(["git", "add", "-A"])
 
-# Commit if needed
 try:
-    run(["git", "commit", "-m", "Auto update workflow + sync"])
-except subprocess.CalledProcessError:
+    run(["git", "commit", "-m", f"Update workflow for {sln}"])
+except:
     print("Nothing new to commit.")
 
-# Sync remote safely
 run_ignore(["git", "pull", "origin", "main", "--rebase"])
-
-# Push
 run(["git", "push", "origin", "main"])
 
-print("Repository fully synced and pushed.")
+print("Workflow synced and pushed successfully.")
