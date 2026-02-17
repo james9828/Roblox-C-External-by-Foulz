@@ -10,23 +10,21 @@ def run_ignore(cmd):
     except subprocess.CalledProcessError:
         pass
 
-# Find all .sln files
-sln_files = [f for f in os.listdir() if f.endswith(".sln")]
+# Find first .sln recursively
+sln_path = None
+for root, dirs, files in os.walk("."):
+    for file in files:
+        if file.endswith(".sln"):
+            sln_path = os.path.join(root, file).replace("\\", "/")
+            break
+    if sln_path:
+        break
 
-if not sln_files:
-    print("No .sln files found in this directory.")
+if not sln_path:
+    print("No .sln file found anywhere in this repo.")
     exit(1)
 
-print("Select a solution file:")
-for i, f in enumerate(sln_files):
-    print(f"{i+1}. {f}")
-
-choice = int(input("Enter number: ")) - 1
-sln = sln_files[choice]
-
-# Ensure identity (won’t overwrite if already set)
-run_ignore(["git", "config", "--global", "user.name", "james9828"])
-run_ignore(["git", "config", "--global", "user.email", "your_github_email"])
+print(f"Detected solution: {sln_path}")
 
 workflow = f"""name: Build
 
@@ -45,7 +43,7 @@ jobs:
       uses: microsoft/setup-msbuild@v1.3
 
     - name: Build Solution
-      run: msbuild "{sln}" /p:Configuration=Release
+      run: msbuild "{sln_path}" /p:Configuration=Release
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
@@ -63,12 +61,16 @@ with open(".github/workflows/build.yml", "w") as f:
 # Stage everything
 run_ignore(["git", "add", "-A"])
 
+# Commit if needed
 try:
-    run(["git", "commit", "-m", f"Update workflow for {sln}"])
+    run(["git", "commit", "-m", f"Auto-sync workflow for {sln_path}"])
 except:
     print("Nothing new to commit.")
 
+# Sync remote safely
 run_ignore(["git", "pull", "origin", "main", "--rebase"])
+
+# Push
 run(["git", "push", "origin", "main"])
 
-print("Workflow synced and pushed successfully.")
+print("Workflow auto-synced and pushed successfully.")

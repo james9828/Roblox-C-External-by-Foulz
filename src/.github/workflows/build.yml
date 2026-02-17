@@ -15,7 +15,7 @@ jobs:
       uses: microsoft/setup-msbuild@v1.3
 
     - name: Build Solution
-      run: msbuild "FoulzExternal.sln" /p:Configuration=Release
+      run: msbuild "./FoulzExternal.sln" /p:Configuration=Release
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
