@@ -397,7 +397,7 @@ namespace FoulzExternal
                     _lookin?.Cancel();
                     _lookin = null;
 
-                    try { player.Start(); playerobjects.Start(); HumanoidModule.Start(); TPHandler.Start(); CameraModule.Start(); visuals.Start(); aiming.Start(); desync.Start(); flight.Start(); silentaiming.Start(); } catch { }
+                    try { player.Start(); playerobjects.Start(); HumanoidModule.Start(); TPHandler.Start(); CameraModule.Start(); visuals.Start(); aiming.Start(); Desync.Start(); Flight.Start(); silentaiming.Start(); } catch { }
 
 
                     Dispatcher.Invoke(() =>
@@ -571,5 +571,3 @@ namespace FoulzExternal
         private void silentpredy(object sender, RoutedPropertyChangedEventArgs<double> e) { if (_shutup || SilentPredictionYSlider == null) return; Options.Settings.Silent.PredictionY = (float)SilentPredictionYSlider.Value; if (SilentPredictionYValueText != null) SilentPredictionYValueText.Text = Options.Settings.Silent.PredictionY.ToString("0"); }
         private void silentkey(object sender, RoutedEventArgs e) { if (_shutup) return; var kb = Options.Settings.Silent.SilentAimbotKey; if (kb == null) return; kb.Waiting = true; if (SilentAimbotKeyButton != null) SilentAimbotKeyButton.Content = "PRESS..."; }
     }
-
-}
