@@ -297,4 +297,5 @@ namespace IMGUI
         private static uint u32(System.Windows.Media.Color c) => (uint)((c.A << 24) | (c.B << 16) | (c.G << 8) | c.R);
 
         public static void Main(string[] args) => new Program().Start().Wait();
-    
+    }
+}
