@@ -5,6 +5,8 @@ using FoulzExternal.features.games.universal.flight;
 using FoulzExternal.games.universal.aiming;
 using FoulzExternal.games.universal.humanoid;
 using FoulzExternal.games.universal.visuals;
+using FlightModule = FoulzExternal.features.games.universal.flight.Flight;
+using DesyncModule = FoulzExternal.features.games.universal.desync.Desync;
 using FoulzExternal.helpers.roblox.imagehandler;
 using FoulzExternal.logging;
 using FoulzExternal.logging.notifications;
