@@ -10,107 +10,121 @@ using FoulzExternal.storage;
 
 namespace FoulzExternal.features.games.universal.desync
 {
-    internal static class desync
+    internal static class Desync
     {
-        private static bool vibing = false;
-        private static Thread brain;
-        private static readonly object safety = new();
+        private static bool _isRunning;
+        private static Thread? _workerThread;
+        private static readonly object _lock = new();
+        private static CancellationTokenSource? _cts;
 
-        private static bool is_active = false;
-        private static bool held = false;
-        private static Vector3 spawn = new();
+        private static bool _isActive;
+        private static bool _keyHeld;
+        private static Vector3 _spawnPosition = default;
 
-        private static int old_hash = 0;
-        private static DateTime chill_out = DateTime.MinValue;
+        private static int _lastBindHash;
+        private static DateTime _debounceUntil = DateTime.MinValue;
 
         public class Scene { public bool Active; public Vector3 Position; }
 
         public static void Start()
         {
-            if (vibing) return;
-            vibing = true;
-            brain = new Thread(do_work) { IsBackground = true };
-            brain.Start();
+            if (_isRunning) return;
+            _isRunning = true;
+            _cts = new CancellationTokenSource();
+            _workerThread = new Thread(() => Worker(_cts.Token)) { IsBackground = true };
+            _workerThread.Start();
         }
 
-        public static void Stop() => vibing = false;
+        public static void Stop()
+        {
+            _isRunning = false;
+            _cts?.Cancel();
+            _workerThread?.Join(500);
+            Cleanup();
+        }
 
         public static Scene GetSceneSnapshot()
         {
-            lock (safety) return new Scene { Active = is_active, Position = spawn };
+            lock (_lock) return new Scene { Active = _isActive, Position = _spawnPosition };
         }
-        private static Vector3 get_coords()
+
+        private static Vector3 GetLocalPosition()
         {
             try
             {
                 var lp = Storage.LocalPlayerInstance;
-                if (!lp.IsValid) return new Vector3();
-                var guys = playerobjects.CachedPlayerObjects;
-                if (guys == null) return new Vector3();
-                var localObj = System.Linq.Enumerable.FirstOrDefault(guys, x => x.address == lp.Address);
-                if (localObj.address == 0 || !localObj.HumanoidRootPart.IsValid) return new Vector3();
-                return visuals.GetPos(localObj.HumanoidRootPart, new System.Collections.Generic.Dictionary<long, long>());
+                if (!lp.IsValid) return default;
+                var players = playerobjects.CachedPlayerObjects;
+                if (players == null) return default;
+                var localObj = players.FirstOrDefault(x => x.address == lp.Address);
+                if (localObj.address == 0 || !localObj.HumanoidRootPart.IsValid) return default;
+                return visuals.GetPos(localObj.HumanoidRootPart, new Dictionary<long, long>());
             }
-            catch { return new Vector3(); }
+            catch { return default; }
         }
 
-        private static int get_hash()
+        private static int GetBindHash()
         {
             var b = Options.Settings.Network.DeSyncBind;
             if (b == null) return 0;
             return (b.Key & 0xFFFF) | ((b.MouseButton & 0xFF) << 16) ^ ((b.ControllerButton & 0xFF) << 24);
         }
 
-        private static void do_work()
+        private static void Worker(CancellationToken token)
         {
-            while (vibing)
+            while (!token.IsCancellationRequested && _isRunning)
             {
                 try
                 {
                     if (!Options.Settings.Network.DeSync)
                     {
-                        if (is_active)
-                        {
-                            is_active = false;
-                            lock (safety) spawn = new();
-                        }
+                        if (_isActive) Deactivate();
                         Thread.Sleep(200);
                         continue;
                     }
 
-                    int cur = get_hash();
-                    if (cur != old_hash)
+                    int cur = GetBindHash();
+                    if (cur != _lastBindHash)
                     {
-                        old_hash = cur;
-                        chill_out = DateTime.UtcNow.AddMilliseconds(300);
+                        _lastBindHash = cur;
+                        _debounceUntil = DateTime.UtcNow.AddMilliseconds(300);
                     }
 
-                    bool key = Options.Settings.Network.DeSyncBind.IsPressed();
-                    if (DateTime.UtcNow < chill_out) key = false;
+                    bool pressed = Options.Settings.Network.DeSyncBind.IsPressed();
+                    if (DateTime.UtcNow < _debounceUntil) pressed = false;
 
-                    if (key && !held)
-                    {
-                        held = true;
-                        is_active = true;
-                        lock (safety) spawn = get_coords();
-                        try { SDK.Instance.Mem.Write<bool>(SDK.Instance.Mem.Base + FFlags.NextGenReplicatorEnabledWrite4, true); } catch { }
-                    }
-                    else if (!key && held)
-                    {
-                        held = false;
-                        is_active = false;
-                        lock (safety) spawn = new();
-                        try { SDK.Instance.Mem.Write<bool>(SDK.Instance.Mem.Base + FFlags.NextGenReplicatorEnabledWrite4, false); } catch { }
-                    }
+                    if (pressed && !_keyHeld) Activate();
+                    else if (!pressed && _keyHeld) Deactivate();
 
                     Thread.Sleep(30);
                 }
                 catch { Thread.Sleep(100); }
             }
+            Cleanup();
+        }
 
+        private static void Activate()
+        {
+            _keyHeld = true;
+            _isActive = true;
+            lock (_lock) _spawnPosition = GetLocalPosition();
+            try { SDK.Instance.Mem.Write<bool>(SDK.Instance.Mem.Base + FFlags.NextGenReplicatorEnabledWrite4, true); } catch { }
+        }
+
+        private static void Deactivate()
+        {
+            _keyHeld = false;
+            _isActive = false;
+            lock (_lock) _spawnPosition = default;
             try { SDK.Instance.Mem.Write<bool>(SDK.Instance.Mem.Base + FFlags.NextGenReplicatorEnabledWrite4, false); } catch { }
-            is_active = false;
-            lock (safety) spawn = new();
+        }
+
+        private static void Cleanup()
+        {
+            try { SDK.Instance.Mem.Write<bool>(SDK.Instance.Mem.Base + FFlags.NextGenReplicatorEnabledWrite4, false); } catch { }
+            _isActive = false;
+            lock (_lock) _spawnPosition = default;
+            _keyHeld = false;
         }
     }
 }

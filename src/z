@@ -1,0 +1,61 @@
+import os
+import sys
+import subprocess
+
+if len(sys.argv) < 2:
+    print("Usage: python z.py YourSolution.sln")
+    sys.exit(1)
+
+sln = sys.argv[1]
+
+if not os.path.exists(sln):
+    print("Solution file not found.")
+    sys.exit(1)
+
+workflow_content = f"""name: Build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.3
+
+    - name: Build Solution
+      run: msbuild "{sln}" /p:Configuration=Release
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-output
+        path: |
+          **/bin/Release/**
+"""
+
+os.makedirs(".github/workflows", exist_ok=True)
+
+workflow_path = ".github/workflows/build.yml"
+
+with open(workflow_path, "w") as f:
+    f.write(workflow_content)
+
+def run(cmd):
+    subprocess.run(cmd, check=True)
+
+run(["git", "add", workflow_path])
+
+try:
+    run(["git", "commit", "-m", "Add GitHub Actions build workflow"])
+except subprocess.CalledProcessError:
+    print("Nothing new to commit.")
+
+run(["git", "push"])
+
+print("Workflow pushed successfully.")

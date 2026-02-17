@@ -1,127 +1,100 @@
 ﻿using System;
 using System.Threading;
+using System.Runtime.InteropServices;
 using FoulzExternal.SDK;
 using FoulzExternal.SDK.structures;
 using FoulzExternal.SDK.caches;
 using FoulzExternal.storage;
 using Offsets;
 using Options;
-using System.Windows.Input;
-
-
-// ts don't work, i'll fix and update soon when I got the time
 
 namespace FoulzExternal.features.games.universal.flight
 {
-    internal static class flight
+    internal static class Flight
     {
-        private static bool running = false;
-        private static Thread thread;
-        private static readonly object locker = new();
+        private static bool _isRunning;
+        private static Thread? _workerThread;
+        private static readonly object _lock = new();
+        private static CancellationTokenSource? _cts;
+
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
 
         public static void Start()
         {
-            lock (locker)
+            lock (_lock)
             {
-                if (running) return;
-                running = true;
-                thread = new Thread(start_flight) { IsBackground = true };
-                thread.Start();
+                if (_isRunning) return;
+                _isRunning = true;
+                _cts = new CancellationTokenSource();
+                _workerThread = new Thread(() => Worker(_cts.Token)) { IsBackground = true };
+                _workerThread.Start();
             }
         }
 
         public static void Stop()
         {
-            lock (locker)
+            lock (_lock)
             {
-                running = false;
-                thread?.Join();
+                _isRunning = false;
+                _cts?.Cancel();
+                _workerThread?.Join(500);
+                _cts?.Dispose();
             }
         }
 
-        private static void start_flight()
+        private static void Worker(CancellationToken token)
         {
-            while (running)
+            while (!token.IsCancellationRequested && _isRunning)
             {
                 try
                 {
-                    if (!Options.Settings.Flight.VFlight)
+                    if (!Options.Settings.Flight.VFlight || !Options.Settings.Flight.VFlightBind.IsPressed())
                     {
-                        Thread.Sleep(100);
-                        continue;
-                    }
-
-                    if (!Options.Settings.Flight.VFlightBind.IsPressed())
-                    {
-                        Thread.Sleep(5);
+                        Thread.Sleep(50);
                         continue;
                     }
 
                     var lp = Storage.LocalPlayerInstance;
-                    if (!lp.IsValid)
-                    {
-                        Thread.Sleep(5);
-                        continue;
-                    }
+                    if (!lp.IsValid) { Thread.Sleep(8); continue; }
+
                     var chr = lp.GetCharacter();
-                    if (!chr.IsValid)
-                    {
-                        Thread.Sleep(5);
-                        continue;
-                    }
+                    if (!chr.IsValid) { Thread.Sleep(8); continue; }
+
                     var hrp = chr.FindFirstChild("HumanoidRootPart");
-                    if (!hrp.IsValid)
+                    if (!hrp.IsValid || hrp.Address == 0) { Thread.Sleep(8); continue; }
+
+                    var cam = Storage.WorkspaceInstance.FindFirstChild("Camera");
+                    if (!cam.IsValid) { Thread.Sleep(8); continue; }
+
+                    var rot = SDK.Instance.Mem.Read<Matrix3x3>(cam.Address + Offsets.Camera.Rotation);
+                    var forward = new Vector3 { x = rot.r02, y = rot.r12, z = rot.r22 };
+                    var right   = new Vector3 { x = rot.r00, y = rot.r10, z = rot.r20 };
+
+                    Vector3 dir = default;
+                    bool moving = false;
+
+                    if (IsKeyDown(0x57)) { dir -= forward; moving = true; } // W
+                    if (IsKeyDown(0x53)) { dir += forward; moving = true; } // S
+                    if (IsKeyDown(0x41)) { dir -= right;   moving = true; } // A
+                    if (IsKeyDown(0x44)) { dir += right;   moving = true; } // D
+                    if (IsKeyDown(0x20)) { dir.y += 1f;    moving = true; } // Space
+                    if (IsKeyDown(0x11)) { dir.y -= 1f;    moving = true; } // Ctrl
+
+                    if (moving)
                     {
-                        Thread.Sleep(5);
-                        continue;
+                        if (dir.Magnitude() > 0.01f) dir = dir.Normalize();
+                        SDK.Instance.Mem.Write<Vector3>(hrp.Address + Offsets.BasePart.AssemblyLinearVelocity, dir * Options.Settings.Flight.VFlightSpeed);
                     }
-                    var camera = Storage.WorkspaceInstance.FindFirstChild("Camera");
-                    if (!camera.IsValid)
+                    else
                     {
-                        Thread.Sleep(5);
-                        continue;
+                        SDK.Instance.Mem.Write<Vector3>(hrp.Address + Offsets.BasePart.AssemblyLinearVelocity, default);
                     }
-
-                    long physics_addr = hrp.Address;
-                    if (physics_addr == 0)
-                    {
-                        Thread.Sleep(5);
-                        continue;
-                    }
-
-                    try
-                    {
-                        var rotation_matrix = SDK.Instance.Mem.Read<Matrix3x3>(camera.Address + Offsets.Camera.Rotation);
-                        var look_vector = new Vector3 { x = rotation_matrix.r02, y = rotation_matrix.r12, z = rotation_matrix.r22 };
-                        var right_vector = new Vector3 { x = rotation_matrix.r00, y = rotation_matrix.r10, z = rotation_matrix.r20 };
-
-                        Vector3 direction = new Vector3 { x = 0f, y = 0f, z = 0f };
-                        bool trying_to_move = false;
-
-                        if (IsKeyDown(Key.W)) { direction = direction - look_vector; trying_to_move = true; }
-                        if (IsKeyDown(Key.S)) { direction = direction + look_vector; trying_to_move = true; }
-                        if (IsKeyDown(Key.A)) { direction = direction - right_vector; trying_to_move = true; }
-                        if (IsKeyDown(Key.D)) { direction = direction + right_vector; trying_to_move = true; }
-
-                        if (direction.Magnitude() > 0.01f)
-                            direction = direction.Normalize();
-
-                        float speed = Options.Settings.Flight.VFlightSpeed;
-                        if (trying_to_move)
-                            SDK.Instance.Mem.Write<Vector3>(physics_addr + Offsets.BasePart.AssemblyLinearVelocity, direction * speed);
-                        else
-                            SDK.Instance.Mem.Write<Vector3>(physics_addr + Offsets.BasePart.AssemblyLinearVelocity, new Vector3 { x = 0f, y = 0f, z = 0f });
-                    }
-                    catch { }
                 }
                 catch { }
                 Thread.Sleep(10);
             }
         }
 
-        private static bool IsKeyDown(Key key)
-        {
-            return Keyboard.IsKeyDown(key);
-        }
-    }
-}
+        private static bool IsKeyDown(int vKey) => (GetAsyncKeyState(vKey) & 0x8000) != 0;
+    
